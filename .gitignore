@@ -1,3 +1,10 @@
+ml_env
+*.jpeg
+*.png
+*.jpg
+*.docx
+*.zip
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
