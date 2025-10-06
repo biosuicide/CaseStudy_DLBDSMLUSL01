@@ -1543,6 +1543,7 @@ cluster_profiles = clustered.groupby("cluster").mean().T
 unique_values_dbscan = clustered["cluster"].value_counts()
 print(unique_values_dbscan)
 
+#%%
 # Define which clusters to compare
 analysis = helper.analyze_cluster_differences(cluster_profiles, dbscan_ohe)
 print(analysis.head(10).index)
@@ -1818,7 +1819,7 @@ set_to_scan = set_to_scan_1
 
 iso = Pipeline([("ohe", dbscan_transformer), ("iso", Isomap(n_components=3,n_neighbors=5))]).fit(set_to_scan)
 ohe = iso.named_steps["ohe"].fit_transform(set_to_scan)
-iso_space = dbscan_iso_pipe.named_steps["iso"].transform(
+iso_space = iso.named_steps["iso"].transform(
     dbscan_transformer.transform(set_to_scan)
 )
 
@@ -1904,6 +1905,96 @@ print(f"Chi² = {chi2:.3f}, p = {p:.4f}")
 
 # Who is informed also talks to supervisor and vice versa
 # small confident group (31) have trust and talk to supervisor without knowing about benefits.
+
+#%% check if some hypothesis are true for the whole dataset
+from scipy.stats import chi2_contingency, chi2
+from scipy.stats.contingency import association
+
+employed_only = cleaned_data.copy()
+employed_only = employed_only.drop(
+    employed_only[employed_only[self_employed_col] == "Yes"].index
+)
+employed_only = employed_only.drop(labels=self_employed_col, axis=1)
+
+x = employed_only[[
+    "Does your employer provide mental health benefits as part of healthcare coverage?",
+    "Does your employer offer resources to learn more about mental health concerns and options for seeking help?",
+    "Do you know the options for mental health care available under your employer-provided coverage?",
+    "Has your employer ever formally discussed mental health (for example, as part of a wellness campaign or other official communication)?"
+]]
+y = employed_only[[
+    "Would you feel comfortable discussing a mental health disorder with your direct supervisor(s)?",
+    "Do you think that discussing a mental health disorder with your employer would have negative consequences?",
+    "Do you think that discussing a physical health issue with your employer would have negative consequences?",
+    "Do you feel that your employer takes mental health as seriously as physical health?",
+    "Have you observed or experienced an unsupportive or badly handled response to a mental health issue in your current or previous workplace?"
+]]
+
+results = []
+for x_col in x.columns:
+    for y_col in y.columns:
+        table = pd.crosstab(
+            employed_only[x_col],
+            employed_only[y_col]
+        )
+        chi2_stat, p, dof, expected = chi2_contingency(table)
+        cramers_v = association(table.to_numpy(),"cramer")
+        results.append({
+            "X_variable": x_col,
+            "Y_variable": y_col,
+            "Chi2": f"{chi2_stat:.1f}",
+            "df": dof,
+            "p_value": f"{p:.3f}",
+            "Cramers_V": f"{cramers_v:.3}",
+        })
+results_df = pd.DataFrame(results)
+results_df.sort_values("Cramers_V", ascending=False, inplace=True)
+
+helper.create_table_in_word(results_df, "Association table")
+# all statistically significant, but cramer´s V only suggest weak relationships
+# plot the top 
+
+labels = {
+    "Has your employer ever formally discussed mental health (for example, as part of a wellness campaign or other official communication)?": "Employer discussed MH",
+    "Do you feel that your employer takes mental health as seriously as physical health?": "Takes MH seriously",
+    "Would you feel comfortable discussing a mental health disorder with your direct supervisor(s)?": "Comfortable w/ supervisor",
+    "Do you think that discussing a mental health disorder with your employer would have negative consequences?": "Neg. consequences (MH)",
+}
+
+pairs = [
+    (
+        "Has your employer ever formally discussed mental health (for example, as part of a wellness campaign or other official communication)?",
+        "Do you feel that your employer takes mental health as seriously as physical health?",
+    ),
+    (
+        "Has your employer ever formally discussed mental health (for example, as part of a wellness campaign or other official communication)?",
+        "Would you feel comfortable discussing a mental health disorder with your direct supervisor(s)?",
+    ),
+    (
+        "Has your employer ever formally discussed mental health (for example, as part of a wellness campaign or other official communication)?",
+        "Do you think that discussing a mental health disorder with your employer would have negative consequences?",
+    )
+]
+
+fig, axes = plt.subplots(1, 3, figsize=(9, 3), sharey=True)
+
+for ax, (x_col, y_col) in zip(axes.flat, pairs):
+    table = pd.crosstab(
+        employed_only[x_col],
+        employed_only[y_col],
+        normalize="index"
+    )
+    sns.heatmap(table, cmap="Blues", annot=True, fmt=".2f", ax=ax, cbar=False)
+    ax.set_xlabel(labels[y_col])
+    ax.set_ylabel("")
+    # ax.set_ylabel(labels[x_col])
+
+fig.text(0.07, 0.5, "Employer discussed MH", va='center', rotation='vertical', fontsize=10)
+fig.suptitle("Employer communication and employee attitudes toward mental health", fontsize=12, y=1.02)
+plt.savefig("fig_pos_effect_discussion_mh.jpg", dpi=300, bbox_inches="tight", facecolor="white")
+plt.show()
+plt.close(fig)
+
 
 #%%
 
