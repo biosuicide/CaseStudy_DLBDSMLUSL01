@@ -1,10 +1,14 @@
+import textwrap
+import itertools
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+
 import seaborn as sns
 
-import textwrap
 from collections import OrderedDict
+from math import pi
 
 from shapely.affinity import scale as shp_scale
 from shapely.affinity import translate as shp_translate
@@ -21,13 +25,13 @@ from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import DBSCAN
 from sklearn.metrics import silhouette_score
-from math import pi
-from matplotlib.projections.polar import PolarAxes
-from typing import cast
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
+
+from matplotlib.projections.polar import PolarAxes
+from typing import cast
 from docx import Document
-import itertools
+
 
 
 cb = sns.color_palette("colorblind")

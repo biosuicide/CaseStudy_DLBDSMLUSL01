@@ -1,25 +1,38 @@
 #%% libraries
 import pandas as pd
 import numpy as np
-import importlib
 import json
 import helper  
-importlib.reload(helper)
+import wget
+import os
 
 import country_converter as coco
 import geopandas as gpd
-import wget
-import os
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.manifold import Isomap
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats.mstats import winsorize
+from sklearn.cluster import DBSCAN
+from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import RidgeClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
 from sklearn import set_config
 set_config(transform_output="pandas")
+
 from bs4 import BeautifulSoup
+
+from scipy.stats.mstats import winsorize
+from scipy.stats import chi2_contingency
+from scipy.stats import chi2
+from scipy.stats.contingency import association
 
 
 # global plotting defaults
@@ -616,22 +629,6 @@ for col in cleaned_data.columns:
 
 #%% plot some demographics
 helper.plot_circle_with_table(
-    prof_diagnosis_type_col,
-    cleaned_data,
-    "Professional diagnosis",
-    savefile=True,
-    savefile_name="fig_professional_diagnosis_0.jpeg"
-)
-
-helper.plot_circle_with_table(
-    own_diagnosis_type_col,
-    cleaned_data,
-    "Participants reported self-diagnosis",
-    savefile=True,
-    savefile_name="fig_own_diagnosis_0.jpeg"
-)
-
-helper.plot_circle_with_table(
     work_position_col_0,
     cleaned_data,
     "First Work Position of participants",
@@ -647,9 +644,61 @@ helper.plot_circle_with_table(
     savefile_name="fig_work_pos_1.jpeg"
 )
 
+# %% Diagnosis overview
+print("="*40)
+print("% professional diagnosed disorders")
+print("="*40)
+prof_diagnosed_norm = cleaned_data[prof_diagnosis_type_col].value_counts(normalize=True)
+print(prof_diagnosed_norm)
+print("="*40)
+print("% self-reported disorders")
+print("="*40)
+self_diagnosed_norm = cleaned_data[own_diagnosis_type_col].value_counts(normalize=True)
+print(self_diagnosed_norm)
 
 
+diagnosis = pd.concat(
+    [self_diagnosed_norm, prof_diagnosed_norm],
+    axis=1
+).reset_index()
+diagnosis.columns = ["disorder", "% professional diagnosed", "% self-reported"]
+diagnosis = diagnosis.fillna(0)
+diagnosis["% professional diagnosed"] = (
+    diagnosis["% professional diagnosed"] * 100
+    ).map("{:.1f}%".format)
+diagnosis["% self-reported"] = (
+    diagnosis["% self-reported"] * 100
+    ).map("{:.1f}%".format)
+helper.create_table_in_word(diagnosis, "Diagnoses")
 
+
+#%% Work position Overview
+print("="*40)
+print("First Work position")
+print("="*40)
+first_position = cleaned_data[work_position_col_0].value_counts(normalize=True)
+print(first_position)
+print("="*40)
+print("Second Work Position")
+print("="*40)
+second_position = cleaned_data[work_position_col_1].value_counts(normalize=True)
+print(second_position)
+
+work_position = pd.concat(
+    [first_position, second_position],
+    axis=1
+).reset_index()
+work_position.columns = ["Position", "% as first position", "% as second position"]
+work_position = work_position.fillna(0)
+work_position["% as first position"] = (
+    work_position["% as first position"] * 100
+    ).map("{:.1f}%".format)
+work_position["% as second position"] = (
+    work_position["% as second position"] * 100
+    ).map("{:.1f}%".format)
+
+helper.create_table_in_word(work_position, "Work Positions")
+#%%
 
 
 
@@ -949,7 +998,7 @@ print(f"{(joint_proba_think.loc["Yes","Maybe"] + joint_proba_think.loc["Yes","No
 print("="*40)
 
 #%% prepare df for linear regression
-from sklearn.model_selection import train_test_split
+
 
 family_history_col = "Do you have a family history of mental illness?"
 remote_work_col = "Do you work remotely?"
@@ -1020,10 +1069,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 
     
 #%% try ridge classification
-from sklearn.linear_model import RidgeClassifier
-from sklearn.pipeline import Pipeline
-from sklearn.metrics import classification_report
-
 # tuning parameters did not change the classifier in terms of confusion matrix
 ridge_classifier = RidgeClassifier(
     alpha=1.0,
@@ -1106,7 +1151,7 @@ helper.show_sequential_feature_selection(
 
 
 #%% doing Logistic regression
-from sklearn.linear_model import LogisticRegression
+
 logit_classifier = LogisticRegression(
     penalty="elasticnet",
     solver="saga",
@@ -1186,7 +1231,7 @@ helper.show_sequential_feature_selection(
 # same as ridge regression
     
 #%% Linear SVM Classification
-from sklearn.svm import LinearSVC
+
 svm_classifier = LinearSVC(
     random_state=42
 )
@@ -1302,11 +1347,7 @@ helper.show_sequential_feature_selection(
 
 
 
-# %% import everything for DBSCAN
-from sklearn.cluster import DBSCAN
-from sklearn.decomposition import PCA
-from sklearn.pipeline import Pipeline
-
+# %%
 # apply it to the employed_special scan, so we skip the overall clusters
 # similar pattern as the t-SNE show up if we do not subsample
 
@@ -1885,8 +1926,6 @@ helper.plot_radar_with_noise(
 
 
 #%% check correlation between knowing health benefits and supervisor disclosure
-from scipy.stats import chi2_contingency
-
 clustered = pd.DataFrame(dbscan_ohe.fit_transform(cleaned_data))
 
 contingency = pd.crosstab(
@@ -1907,9 +1946,6 @@ print(f"Chi² = {chi2:.3f}, p = {p:.4f}")
 # small confident group (31) have trust and talk to supervisor without knowing about benefits.
 
 #%% check if some hypothesis are true for the whole dataset
-from scipy.stats import chi2_contingency, chi2
-from scipy.stats.contingency import association
-
 employed_only = cleaned_data.copy()
 employed_only = employed_only.drop(
     employed_only[employed_only[self_employed_col] == "Yes"].index
