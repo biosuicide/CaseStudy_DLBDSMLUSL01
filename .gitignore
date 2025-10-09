@@ -1,9 +1,14 @@
 ml_env
-*.jpeg
-*.png
-*.jpg
-*.docx
-*.zip
+/*.jpeg
+/*.png
+/*.jpg
+/*.docx
+/*.zip
+!*/**/*.jpeg
+!*/**/*.jpg
+!*/**/*.png
+!*/**/*.docx
+!*/**/*.zip
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
